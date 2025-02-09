@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Календарь</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+        .calendar-container { display: flex; flex-direction: column; align-items: center; width: 400px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; width: 100%; }
+        .weekdays, .calendar { display: grid; grid-template-columns: repeat(7, 1fr); width: 100%; }
+        .weekdays div, .day { padding: 10px; border: 1px solid #ccc; }
+        .day { cursor: pointer; }
+        .green { background-color: lightgreen; }
+        .yellow { background-color: lightyellow; }
+        .controls { margin-bottom: 10px; display: flex; justify-content: space-around; width: 100%; }
+        .stats-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+        #columns { display: flex; flex-direction: column; align-items: start; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label>Год: <select id="year"></select></label>
+        <label>Месяц: <select id="month"></select></label>
+    </div>
+    <div class="calendar-container">
+        <div class="weekdays">
+            <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+        </div>
+        <div class="calendar" id="calendar"></div>
+    </div>
+    <h3>Задачи:</h3>
+    <input type="text" id="newColumn" placeholder="Название"/>
+    <button onclick="addColumn()">Добавить</button>
+    <h3>Выбранный день: <span id="selectedDay">-</span></h3>
+    <div id="columns"></div>
+    <h3>Статистика:</h3>
+    <div id="stats" class="stats-container"></div>
+
+    <script>
+        let selectedDate = null;
+        let columns = JSON.parse(localStorage.getItem('columns')) || [];
+        let checkedData = JSON.parse(localStorage.getItem('checkedData')) || {};
+        
+        function updateStats() {
+            let stats = {};
+            Object.values(checkedData).forEach(list => {
+                list.forEach(col => stats[col] = (stats[col] || 0) + 1);
+            });
+            document.getElementById('stats').innerHTML = Object.entries(stats)
+                .map(([col, count]) => `<div>${col}: ${count}</div>`).join('');
+        }
+        
+        function addColumn() {
+            let name = document.getElementById('newColumn').value.trim();
+            if (name && !columns.includes(name)) {
+                columns.push(name);
+                localStorage.setItem('columns', JSON.stringify(columns));
+                updateColumns();
+            }
+        }
+
+        function updateColumns() {
+            let container = document.getElementById('columns');
+            container.innerHTML = '';
+            columns.forEach(col => {
+                let label = document.createElement('label');
+                let input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = col;
+                input.onchange = () => saveChecked();
+                label.append(input, col);
+                container.appendChild(label);
+            });
+        }
+
+        function saveChecked() {
+            if (!selectedDate) return;
+            let checked = Array.from(document.querySelectorAll('#columns input:checked')).map(i => i.value);
+            checkedData[selectedDate] = checked;
+            localStorage.setItem('checkedData', JSON.stringify(checkedData));
+            updateCalendar();
+            updateStats();
+        }
+
+        function updateCalendar() {
+            let year = parseInt(document.getElementById('year').value);
+            let month = parseInt(document.getElementById('month').value);
+            let firstDay = new Date(year, month, 1).getDay();
+            let daysInMonth = new Date(year, month + 1, 0).getDate();
+            let today = new Date();
+            let calendar = document.getElementById('calendar');
+            calendar.innerHTML = '';
+            let startOffset = (firstDay === 0 ? 6 : firstDay - 1);
+            for (let i = 0; i < startOffset; i++) {
+                calendar.appendChild(document.createElement('div'));
+            }
+            for (let i = 1; i <= daysInMonth; i++) {
+                let dateStr = `${year}-${month + 1}-${i}`;
+                let div = document.createElement('div');
+                div.className = 'day';
+                div.textContent = i;
+                div.onclick = () => selectDay(dateStr, i);
+                if (checkedData[dateStr]?.length) div.classList.add('green');
+                else if (new Date(year, month, i) < today) div.classList.add('yellow');
+                calendar.appendChild(div);
+            }
+        }
+
+        function selectDay(dateStr, day) {
+            selectedDate = dateStr;
+            document.getElementById('selectedDay').textContent = day;
+            document.querySelectorAll('#columns input').forEach(input => {
+                input.checked = checkedData[selectedDate]?.includes(input.value) || false;
+            });
+        }
+
+        function populateSelectors() {
+            let yearSelect = document.getElementById('year');
+            let monthSelect = document.getElementById('month');
+            let now = new Date();
+            for (let y = now.getFullYear() - 5; y <= now.getFullYear() + 5; y++) {
+                yearSelect.add(new Option(y, y));
+            }
+            for (let m = 0; m < 12; m++) {
+                monthSelect.add(new Option(new Date(2023, m).toLocaleString('ru', { month: 'long' }), m));
+            }
+            yearSelect.value = now.getFullYear();
+            monthSelect.value = now.getMonth();
+            yearSelect.onchange = updateCalendar;
+            monthSelect.onchange = updateCalendar;
+        }
+
+        populateSelectors();
+        updateColumns();
+        updateCalendar();
+        updateStats();
+    </script>
+</body>
+</html>
